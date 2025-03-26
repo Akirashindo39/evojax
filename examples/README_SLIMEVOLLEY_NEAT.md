@@ -84,7 +84,7 @@ The agent typically improves from random movements to strategic gameplay over hu
 ### Neural Network Structure
 
 ![Example Network Structure](./slimevolley_neat_sample_resources/sample_network_1000_generations.png)
-*Example of an evolved neural network structure with the input nodes (blue), bias nodes (yellow), hidden nodes (red), and output nodes (green).*
+*Example of an evolved neural network structure with the input nodes (blue), bias node (yellow), hidden nodes (gray), and output nodes (green).*
 
 The evolved networks typically develop an efficient structure with:
 - Direct connections from key inputs to outputs
