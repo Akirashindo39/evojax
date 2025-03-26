@@ -27,6 +27,7 @@ import jax.numpy as jnp
 
 from evojax.algo.base import NEAlgorithm
 from evojax.util import create_logger
+from evojax.constants.neat_constants import *
 
 
 class NEATConfig:
@@ -36,20 +37,20 @@ class NEATConfig:
         self,
         input_dim: int,
         output_dim: int,
-        max_nodes: int = 30,
-        max_connections: int = 100,
-        compatibility_threshold: float = 3.8,
-        compatibility_disjoint_coefficient: float = 1.0,
-        compatibility_weight_coefficient: float = 0.6,
-        conn_add_prob: float = 0.15,
-        conn_delete_prob: float = 0.08,
-        node_add_prob: float = 0.1,
-        node_delete_prob: float = 0.03,
-        act_fn_mutate_prod: float = 0.1,
-        weight_mutate_prob: float = 0.9,
-        weight_mutate_power: float = 2.0,
-        survival_threshold: float = 0.3,
-        elitism: int = 3,
+        max_nodes: int = DEFAULT_MAX_NODES,
+        max_connections: int = DEFAULT_MAX_CONNECTIONS,
+        compatibility_threshold: float = DEFAULT_COMPATIBILITY_THRESHOLD,
+        compatibility_disjoint_coefficient: float = DEFAULT_COMPATIBILITY_DISJOINT_COEFFICIENT,
+        compatibility_weight_coefficient: float = DEFAULT_COMPATIBILITY_WEIGHT_COEFFICIENT,
+        conn_add_prob: float = DEFAULT_CONN_ADD_PROB,
+        conn_delete_prob: float = DEFAULT_CONN_DELETE_PROB,
+        node_add_prob: float = DEFAULT_NODE_ADD_PROB,
+        node_delete_prob: float = DEFAULT_NODE_DELETE_PROB,
+        act_fn_mutate_prod: float = DEFAULT_ACT_FN_MUTATE_PROB,
+        weight_mutate_prob: float = DEFAULT_WEIGHT_MUTATE_PROB,
+        weight_mutate_power: float = DEFAULT_WEIGHT_MUTATE_POWER,
+        survival_threshold: float = DEFAULT_SURVIVAL_THRESHOLD,
+        elitism: int = DEFAULT_ELITISM,
     ):
         """Initialize NEAT configuration.
 
@@ -119,26 +120,26 @@ class NEAT(NEAlgorithm):
     def __init__(
         self,
         param_size: int,
-        pop_size: int,
-        input_dim: int,
-        output_dim: int,
-        max_nodes: int = 30,
-        max_connections: int = 100,
-        init_stdev: float = 0.5,
-        seed: int = 0,
+        pop_size: int = DEFAULT_POPULATION_SIZE,
+        input_dim: int = 0,
+        output_dim: int = 0,
+        max_nodes: int = DEFAULT_MAX_NODES,
+        max_connections: int = DEFAULT_MAX_CONNECTIONS,
+        init_stdev: float = DEFAULT_INIT_STD,
+        seed: int = DEFAULT_SEED,
         logger: logging.Logger = None,
-        compatibility_threshold: float = 3.8,
-        compatibility_disjoint_coefficient: float = 1.0,
-        compatibility_weight_coefficient: float = 0.6,
-        conn_add_prob: float = 0.15,
-        conn_delete_prob: float = 0.08,
-        node_add_prob: float = 0.1,
-        node_delete_prob: float = 0.03,
-        act_fn_mutate_prod: float = 0.1,
-        weight_mutate_prob: float = 0.9,
-        weight_mutate_power: float = 2.0,
-        survival_threshold: float = 0.3,
-        elitism: int = 3,
+        compatibility_threshold: float = DEFAULT_COMPATIBILITY_THRESHOLD,
+        compatibility_disjoint_coefficient: float = DEFAULT_COMPATIBILITY_DISJOINT_COEFFICIENT,
+        compatibility_weight_coefficient: float = DEFAULT_COMPATIBILITY_WEIGHT_COEFFICIENT,
+        conn_add_prob: float = DEFAULT_CONN_ADD_PROB,
+        conn_delete_prob: float = DEFAULT_CONN_DELETE_PROB,
+        node_add_prob: float = DEFAULT_NODE_ADD_PROB,
+        node_delete_prob: float = DEFAULT_NODE_DELETE_PROB,
+        act_fn_mutate_prod: float = DEFAULT_ACT_FN_MUTATE_PROB,
+        weight_mutate_prob: float = DEFAULT_WEIGHT_MUTATE_PROB,
+        weight_mutate_power: float = DEFAULT_WEIGHT_MUTATE_POWER,
+        survival_threshold: float = DEFAULT_SURVIVAL_THRESHOLD,
+        elitism: int = DEFAULT_ELITISM,
     ):
         """Initialize NEAT.
 
@@ -243,18 +244,18 @@ class NEAT(NEAlgorithm):
 
         # Set inputs, bias, and output nodes
         for i in range(self.config.input_dim):
-            # Change: Assign random activation function
+            # Assign random activation function
             node_section[i] = [
                 i,
-                0,
-                self.rng.randint(0, 9),
+                NODE_TYPE_INPUT,
+                self.rng.randint(0, NUM_ACT_FNS),
             ]  # id, type=input, random activation
 
         # Set bias node
         node_section[self.config.bias_node_id] = [
             self.config.bias_node_id,
-            0,
-            self.rng.randint(0, 9),
+            NODE_TYPE_INPUT,  # Bias is treated as an input
+            self.rng.randint(0, NUM_ACT_FNS),
         ]
 
         # Set output nodes
@@ -262,8 +263,8 @@ class NEAT(NEAlgorithm):
             node_id = self.config.output_start_id + i
             node_section[node_id] = [
                 node_id,
-                1,
-                self.rng.randint(0, 9),
+                NODE_TYPE_OUTPUT,
+                self.rng.randint(0, NUM_ACT_FNS),
             ]  # random activation
 
         # Now set up initial connections from each input to each output
@@ -276,7 +277,12 @@ class NEAT(NEAlgorithm):
         for i in range(self.config.input_dim):
             for j in range(self.config.output_dim):
                 to_node = self.config.output_start_id + j
-                conn_section[conn_idx] = [i, to_node, self.rng.normal(0, init_stdev), 1]
+                conn_section[conn_idx] = [
+                    i,
+                    to_node,
+                    self.rng.normal(0, init_stdev),
+                    CONNECTION_ENABLED,
+                ]
                 conn_idx += 1
 
         # Connect bias to outputs
@@ -286,7 +292,7 @@ class NEAT(NEAlgorithm):
                 self.config.bias_node_id,
                 to_node,
                 self.rng.normal(0, init_stdev),
-                1,
+                CONNECTION_ENABLED,
             ]
             conn_idx += 1
 
@@ -357,10 +363,10 @@ class NEAT(NEAlgorithm):
                 node_idx = self.rng.choice(mutable_nodes)
 
                 # Change to a different activation function (0-8)
-                current_act = int(node_section[node_idx, 2]) % 9
+                current_act = int(node_section[node_idx, 2]) % NUM_ACT_FNS
                 new_act = (
-                    current_act + self.rng.randint(1, 9)
-                ) % 9  # Ensures it changes
+                    current_act + self.rng.randint(1, NUM_ACT_FNS)
+                ) % NUM_ACT_FNS  # Ensures it changes
                 node_section[node_idx, 2] = new_act
 
         # Mutate connection weights
@@ -394,7 +400,7 @@ class NEAT(NEAlgorithm):
         from_node, to_node, weight, _ = conn_section[conn_idx]
 
         # Disable the selected connection
-        conn_section[conn_idx, 3] = 0
+        conn_section[conn_idx, 3] = CONNECTION_DISABLED
 
         # Find first free node slot
         for i in range(self.config.initial_nodes, self.config.max_nodes):
@@ -407,30 +413,42 @@ class NEAT(NEAlgorithm):
         # Set up the new node (as a hidden node)
         node_section[new_node_id] = [
             new_node_id,
-            2,
-            self.rng.randint(0, 9),
+            NODE_TYPE_HIDDEN,
+            self.rng.randint(0, NUM_ACT_FNS),
         ]  # random activation
 
         # Find free connection slots for two new connections
         free_conn_slots = []
         for i in range(self.config.max_connections):
-            if conn_section[i, 3] == 0:  # Check if connection is disabled/unused
+            if (
+                conn_section[i, 3] == CONNECTION_DISABLED
+            ):  # Check if connection is disabled/unused
                 free_conn_slots.append(i)
                 if len(free_conn_slots) >= 2:
                     break
 
         if len(free_conn_slots) < 2:
             # Revert changes if not enough connection slots
-            conn_section[conn_idx, 3] = 1
+            conn_section[conn_idx, 3] = CONNECTION_ENABLED
             node_section[new_node_id] = [0, 0, 0]
             return
 
         # Add two new connections
         # 1. Connection from the original source to new node (weight = 1.0)
-        conn_section[free_conn_slots[0]] = [from_node, new_node_id, 1.0, 1]
+        conn_section[free_conn_slots[0]] = [
+            from_node,
+            new_node_id,
+            1.0,
+            CONNECTION_ENABLED,
+        ]
 
         # 2. Connection from new node to the original target (weight = original weight)
-        conn_section[free_conn_slots[1]] = [new_node_id, to_node, weight, 1]
+        conn_section[free_conn_slots[1]] = [
+            new_node_id,
+            to_node,
+            weight,
+            CONNECTION_ENABLED,
+        ]
 
     def _mutate_add_connection(
         self,
@@ -448,12 +466,16 @@ class NEAT(NEAlgorithm):
         # Get valid source and target nodes
         # Sources can be input, bias, or hidden nodes
         sources = [
-            n for n in active_nodes if node_section[n, 1] in [0, 2]
+            n
+            for n in active_nodes
+            if node_section[n, 1] in [NODE_TYPE_INPUT, NODE_TYPE_HIDDEN]
         ]  # Input, bias, or hidden
 
         # Targets can be hidden or output nodes
         targets = [
-            n for n in active_nodes if node_section[n, 1] in [1, 2]
+            n
+            for n in active_nodes
+            if node_section[n, 1] in [NODE_TYPE_OUTPUT, NODE_TYPE_HIDDEN]
         ]  # Output or hidden
 
         if not sources or not targets:
@@ -471,7 +493,7 @@ class NEAT(NEAlgorithm):
                 if (
                     conn_section[i, 0] == from_idx
                     and conn_section[i, 1] == to_idx
-                    and conn_section[i, 3] == 1
+                    and conn_section[i, 3] == CONNECTION_ENABLED
                 ):
                     exists = True
                     break
@@ -488,8 +510,15 @@ class NEAT(NEAlgorithm):
 
             # Find free connection slot
             for i in range(self.config.max_connections):
-                if conn_section[i, 3] == 0:  # Connection is disabled/unused
-                    conn_section[i] = [from_idx, to_idx, self.rng.normal(0, 1.0), 1]
+                if (
+                    conn_section[i, 3] == CONNECTION_DISABLED
+                ):  # Connection is disabled/unused
+                    conn_section[i] = [
+                        from_idx,
+                        to_idx,
+                        self.rng.normal(0, 1.0),
+                        CONNECTION_ENABLED,
+                    ]
                     return
 
             # No free slots
@@ -508,7 +537,7 @@ class NEAT(NEAlgorithm):
             return
 
         conn_idx = self.rng.choice(active_conns)
-        conn_section[conn_idx, 3] = 0  # Disable the connection
+        conn_section[conn_idx, 3] = CONNECTION_DISABLED  # Disable the connection
 
     def _mutate_delete_node(
         self,
@@ -532,8 +561,8 @@ class NEAT(NEAlgorithm):
         for i in range(self.config.max_connections):
             if (
                 conn_section[i, 0] == node_idx or conn_section[i, 1] == node_idx
-            ) and conn_section[i, 3] == 1:
-                conn_section[i, 3] = 0
+            ) and conn_section[i, 3] == CONNECTION_ENABLED:
+                conn_section[i, 3] = CONNECTION_DISABLED
 
         # Disable the node
         node_section[node_idx] = [0, 0, 0]
@@ -559,7 +588,9 @@ class NEAT(NEAlgorithm):
             List of active connection indices
         """
         return [
-            i for i in range(self.config.max_connections) if conn_section[i, 3] == 1
+            i
+            for i in range(self.config.max_connections)
+            if conn_section[i, 3] == CONNECTION_ENABLED
         ]
 
     def _crossover(self, parent1: np.ndarray, parent2: np.ndarray) -> np.ndarray:
@@ -617,8 +648,8 @@ class NEAT(NEAlgorithm):
             more_fit_conn = more_fit_conns[i]
             less_fit_conn = less_fit_conns[i]
 
-            more_fit_enabled = more_fit_conn[3] == 1
-            less_fit_enabled = less_fit_conn[3] == 1
+            more_fit_enabled = more_fit_conn[3] == CONNECTION_ENABLED
+            less_fit_enabled = less_fit_conn[3] == CONNECTION_ENABLED
 
             if more_fit_enabled and less_fit_enabled:
                 # Both parents have this connection - randomly choose which to inherit
@@ -656,12 +687,12 @@ class NEAT(NEAlgorithm):
         active1 = {
             (int(conn1[i, 0]), int(conn1[i, 1])): conn1[i, 2]
             for i in range(self.config.max_connections)
-            if conn1[i, 3] == 1
+            if conn1[i, 3] == CONNECTION_ENABLED
         }
         active2 = {
             (int(conn2[i, 0]), int(conn2[i, 1])): conn2[i, 2]
             for i in range(self.config.max_connections)
-            if conn2[i, 3] == 1
+            if conn2[i, 3] == CONNECTION_ENABLED
         }
 
         # Count matching and disjoint genes

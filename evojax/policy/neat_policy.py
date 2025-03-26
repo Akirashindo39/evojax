@@ -36,6 +36,7 @@ from evojax.policy.base import PolicyNetwork
 from evojax.policy.base import PolicyState
 from evojax.task.base import TaskState
 from evojax.util import create_logger
+from evojax.constants.neat_constants import *
 
 
 class NEATPolicy(PolicyNetwork):
@@ -49,10 +50,10 @@ class NEATPolicy(PolicyNetwork):
         self,
         input_dim: int,
         output_dim: int,
-        output_act_fn: str = "tanh",
-        max_nodes: int = 100,
-        max_connections: int = 500,
-        max_propagation_steps: int = 5,
+        output_act_fn: str = ACT_NAMES[ACT_TANH],
+        max_nodes: int = DEFAULT_MAX_NODES,
+        max_connections: int = DEFAULT_MAX_CONNECTIONS,
+        max_propagation_steps: int = DEFAULT_MAX_PROPAGATION_STEPS,
         logger: logging.Logger = None,
     ):
         """Initialize a NEAT policy.
@@ -94,33 +95,6 @@ class NEATPolicy(PolicyNetwork):
 
         self._logger.info(f"NEATPolicy.num_params = {self.num_params}")
 
-        # Available activation functions
-        self._activation_fns = [
-            jnp.tanh,  # 0: tanh - maps to [-1, 1]
-            jax.nn.sigmoid,  # 1: sigmoid - maps to [0, 1]
-            jax.nn.selu,  # 2: SELU - has self-normalizing properties
-            lambda x: jnp.maximum(0.01 * x, x),  # 3: LeakyReLU - differentiable at 0
-            jax.nn.elu,  # 4: ELU - differentiable alternative to ReLU
-            jax.nn.swish,  # 5: Swish - smooth activation function
-            lambda x: x,  # 6: Identity - linear activation
-            jax.nn.gelu,  # 7: GELU - smooth, performant in deep networks
-            jax.nn.softplus,  # 8: Softplus - smooth approximation of ReLU
-        ]
-        self._num_activations = len(self._activation_fns)
-
-        # Name mapping for logging and visualization
-        self._activation_names = [
-            "tanh",
-            "sigmoid",
-            "selu",
-            "leaky_relu",
-            "elu",
-            "swish",
-            "identity",
-            "gelu",
-            "softplus",
-        ]
-
         # Setup the forward pass function
         self._forward_fn = jax.vmap(self._forward)
 
@@ -157,14 +131,14 @@ class NEATPolicy(PolicyNetwork):
         """
         # Convert activation type to an index by taking modulo of activation types
         # This ensures even if a mutation creates an invalid index, it maps to a valid one
-        act_idx = jnp.int32(jnp.abs(act_type) % self._num_activations)
+        act_idx = jnp.int32(jnp.abs(act_type) % NUM_ACT_FNS)
 
         # Initialize with first activation
-        result = self._activation_fns[0](value)
+        result = ACT_FNS[ACT_TANH](value)
 
         # Use lax.select to choose the correct activation (JAX-friendly conditional)
-        for i in range(1, self._num_activations):
-            result = lax.select(act_idx == i, self._activation_fns[i](value), result)
+        for i in range(1, NUM_ACT_FNS):
+            result = lax.select(act_idx == i, ACT_FNS[i](value), result)
 
         return result
 
@@ -183,9 +157,6 @@ class NEATPolicy(PolicyNetwork):
         """
         # Create a fresh node activation buffer to collect incoming signals
         node_activations = jnp.zeros(self._max_nodes)
-
-        # Filter for enabled connections (value of 1.0 in the enabled flag column)
-        enabled_mask = connections[:, 3] > 0.5  # Enabled flag must be > 0.5
 
         # Only process enabled connections
         def process_connection(i, activations):
@@ -314,5 +285,5 @@ class NEATPolicy(PolicyNetwork):
             String name of the activation function.
         """
         # Apply same modulo logic as in _apply_activation
-        idx = abs(int(act_idx)) % self._num_activations
-        return self._activation_names[idx]
+        idx = abs(int(act_idx)) % NUM_ACT_FNS
+        return ACT_NAMES[idx]

@@ -32,6 +32,7 @@ from evojax.policy.neat_policy import NEATPolicy  # Import the NEAT policy
 from evojax.algo.neat_algo import NEAT  # Import the NEAT solver
 from evojax import Trainer
 from evojax import util
+from evojax.constants.neat_constants import *
 
 
 def parse_args():
@@ -39,74 +40,91 @@ def parse_args():
 
     # Basic training parameters
     parser.add_argument(
-        "--pop-size", type=int, default=30, help="NEAT population size."
+        "--pop-size",
+        type=int,
+        default=DEFAULT_POPULATION_SIZE,
+        help="NEAT population size.",
     )
     parser.add_argument(
-        "--max-iter", type=int, default=500, help="Max training iterations."
+        "--max-iter",
+        type=int,
+        default=DEFAULT_MAX_ITERATIONS,
+        help="Max training iterations.",
     )
     parser.add_argument(
-        "--n-repeats", type=int, default=8, help="Training repetitions."
+        "--n-repeats",
+        type=int,
+        default=DEFAULT_NUM_REPEATS,
+        help="Training repetitions.",
     )
     parser.add_argument(
-        "--num-tests", type=int, default=30, help="Number of test rollouts."
+        "--num-tests",
+        type=int,
+        default=DEFAULT_NUM_TESTS,
+        help="Number of test rollouts.",
     )
     parser.add_argument(
-        "--seed", type=int, default=123, help="Random seed for training."
+        "--seed", type=int, default=DEFAULT_SEED, help="Random seed for training."
     )
 
     # Network structure parameters
     parser.add_argument(
         "--max-nodes",
         type=int,
-        default=30,
+        default=DEFAULT_MAX_NODES,
         help="Maximum number of nodes in NEAT network.",
     )
     parser.add_argument(
         "--max-connections",
         type=int,
-        default=100,
+        default=DEFAULT_MAX_CONNECTIONS,
         help="Maximum number of connections in NEAT network.",
     )
-    parser.add_argument("--init-std", type=float, default=0.5, help="Initial std.")
+    parser.add_argument(
+        "--init-std", type=float, default=DEFAULT_INIT_STD, help="Initial std."
+    )
 
     # NEAT specific parameters (mutation rates)
     parser.add_argument(
         "--conn-add-prob",
         type=float,
-        default=0.15,
+        default=DEFAULT_CONN_ADD_PROB,
         help="Probability of adding a connection",
     )
     parser.add_argument(
         "--conn-delete-prob",
         type=float,
-        default=0.08,
+        default=DEFAULT_CONN_DELETE_PROB,
         help="Probability of deleting a connection",
     )
     parser.add_argument(
-        "--node-add-prob", type=float, default=0.1, help="Probability of adding a node"
+        "--node-add-prob",
+        type=float,
+        default=DEFAULT_NODE_ADD_PROB,
+        help="Probability of adding a node",
     )
     parser.add_argument(
         "--node-delete-prob",
         type=float,
-        default=0.03,
+        default=DEFAULT_NODE_DELETE_PROB,
         help="Probability of deleting a node",
     )
     parser.add_argument(
         "--weight-mutate-prob",
         type=float,
-        default=0.9,
+        default=DEFAULT_WEIGHT_MUTATE_PROB,
         help="Probability of mutating weights",
     )
     parser.add_argument(
         "--weight-mutate-power",
         type=float,
-        default=2.0,
+        default=DEFAULT_WEIGHT_MUTATE_POWER,
         help="Power/magnitude of weight mutations",
     )
     parser.add_argument(
         "--act-fn-mutate-prod",
         type=float,
-        default=0.1,
+        default=DEFAULT_ACT_FN_MUTATE_PROB,
         help="Probability of mutating activation functions",
     )
 
@@ -114,38 +132,46 @@ def parse_args():
     parser.add_argument(
         "--compatibility-threshold",
         type=float,
-        default=3.8,
+        default=DEFAULT_COMPATIBILITY_THRESHOLD,
         help="Threshold for speciation",
     )
     parser.add_argument(
         "--compatibility-disjoint-coef",
         type=float,
-        default=1.0,
+        default=DEFAULT_COMPATIBILITY_DISJOINT_COEFFICIENT,
         help="Disjoint genes coefficient for compatibility",
     )
     parser.add_argument(
         "--compatibility-weight-coef",
         type=float,
-        default=0.6,
+        default=DEFAULT_COMPATIBILITY_WEIGHT_COEFFICIENT,
         help="Weight coefficient for compatibility",
     )
     parser.add_argument(
         "--survival-threshold",
         type=float,
-        default=0.3,
+        default=DEFAULT_SURVIVAL_THRESHOLD,
         help="Fraction of each species to keep for reproduction",
     )
     parser.add_argument(
         "--elitism",
         type=int,
-        default=3,
+        default=DEFAULT_ELITISM,
         help="Number of top individuals to preserve unchanged",
     )
 
     # Logging and debugging
-    parser.add_argument("--test-interval", type=int, default=20, help="Test interval.")
     parser.add_argument(
-        "--log-interval", type=int, default=10, help="Logging interval."
+        "--test-interval",
+        type=int,
+        default=DEFAULT_TEST_INTERVAL,
+        help="Test interval.",
+    )
+    parser.add_argument(
+        "--log-interval",
+        type=int,
+        default=DEFAULT_LOG_INTERVAL,
+        help="Logging interval.",
     )
     parser.add_argument("--debug", action="store_true", help="Debug mode.")
     parser.add_argument("--gpu-id", type=str, help="GPU(s) to use.")
@@ -155,7 +181,7 @@ def parse_args():
 
 
 def visualize_neat_network(
-    params, max_nodes, max_connections, input_dim, output_dim, output_file
+    params, max_nodes, max_connections, input_dim, output_dim, output_file, logger
 ):
     """Visualize the NEAT network structure without graphviz dependency.
 
@@ -199,7 +225,7 @@ def visualize_neat_network(
         # Collect enabled connections
         connections = []
         for i in range(max_connections):
-            if conn_section[i, 3] == 1:  # Enabled connection
+            if conn_section[i, 3] == CONNECTION_ENABLED:  # Enabled connection
                 from_node = int(conn_section[i, 0])
                 to_node = int(conn_section[i, 1])
                 weight = conn_section[i, 2]
@@ -317,28 +343,16 @@ def visualize_neat_network(
         node_colors = []
         for node in pos:
             if node in input_layer:
-                node_colors.append("skyblue")
+                node_colors.append("skyblue")  # Input nodes
                 node_sizes.append(600)
             elif node == bias_node:
-                node_colors.append("gold")
+                node_colors.append("gold")  # Bias node
                 node_sizes.append(600)
             elif node in output_layer:
-                node_colors.append("lightgreen")
+                node_colors.append("lightgreen")  # Output nodes
                 node_sizes.append(600)
             else:
-                # For hidden nodes, use activation function color
-                try:
-                    # Get the activation function type from node params
-                    node_idx = list(active_nodes).index(node)
-                    activation = node_section[node, 0]
-                    if activation > 0.66:
-                        node_colors.append("lightcoral")  # tanh
-                    elif activation > 0.33:
-                        node_colors.append("plum")  # sigmoid
-                    else:
-                        node_colors.append("lightgray")  # relu
-                except:
-                    node_colors.append("lightgray")
+                node_colors.append("lightgray")  # All hidden nodes use the same color
                 node_sizes.append(500)
 
         # Extract x and y coordinates
@@ -348,31 +362,113 @@ def visualize_neat_network(
         # Draw the nodes
         plt.scatter(xs, ys, s=node_sizes, c=node_colors, edgecolors="black", zorder=10)
 
-        # Add node labels
+        # Add more descriptive node labels
         for node in pos:
             x, y = pos[node]
-            if node in input_layer:
-                label = f"In {node}"
-            elif node == bias_node:
-                label = "Bias"
-            elif node in output_layer:
-                label = f"Out {node - (input_dim + 1)}"
-            else:
-                label = f"H {node}"
 
+            # Get activation function for this node
+            if node < max_nodes:  # Ensure node is valid
+                act_idx = (
+                    int(node_section[node, 2]) % NUM_ACT_FNS
+                )  # Using NUM_ACT_FNS from constants
+                act_name = ACT_NAMES[act_idx]  # Using ACT_NAMES from constants
+            else:
+                act_name = "unknown"
+
+            # Create appropriate label based on node type
+            if node in input_layer:
+                label = f"Input {node+1}"
+            elif node == bias_node:
+                label = "Bias (1.0)"
+            elif node in output_layer:
+                # Always show the actual activation function for output nodes
+                output_idx = node - (input_dim + 1) + 1
+                label = f"Output {output_idx}\n({act_name})"
+            else:
+                # For hidden nodes
+                hidden_idx = hidden_nodes.index(node) if node in hidden_nodes else -1
+                if hidden_idx >= 0:
+                    layer_num = [
+                        i for i, layer in enumerate(hidden_layers) if node in layer
+                    ][0] + 1
+                    label = f"H{layer_num},{hidden_idx+1}\n({act_name})"
+                else:
+                    label = f"Node {node}"
+
+            # Draw node label with nicer formatting
             plt.text(
                 x,
                 y,
                 label,
-                fontsize=10,
+                fontsize=9,
                 ha="center",
                 va="center",
-                bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+                bbox=dict(
+                    boxstyle="round,pad=0.3",
+                    facecolor="white",
+                    alpha=0.9,
+                    edgecolor="gray",
+                ),
+                zorder=15,
             )
+
+        # Count network complexity
+        complexity = len(hidden_nodes) * 2 + len(connections)
 
         # Add title and info
         plt.title(
-            f"NEAT Network Structure ({len(active_nodes)} nodes, {len(connections)} connections)"
+            f"NEAT Network Structure\n"
+            f"{len(active_nodes)} nodes, {len(connections)} connections, complexity = {complexity}"
+        )
+
+        # Add legend for activation functions
+        legend_elements = [
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor="skyblue",
+                markersize=10,
+                label="input",
+            ),
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor="gold",
+                markersize=10,
+                label="bias",
+            ),
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor="lightgreen",
+                markersize=10,
+                label="output",
+            ),
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor="lightgray",
+                markersize=10,
+                label="hidden",
+            ),
+            plt.Line2D([0], [0], color="green", lw=2, label="positive weight"),
+            plt.Line2D([0], [0], color="red", lw=2, label="negative weight"),
+        ]
+        plt.legend(
+            handles=legend_elements,
+            loc="lower center",
+            bbox_to_anchor=(0.5, -0.15),
+            ncol=3,
+            frameon=True,
+            title="Node & Connection Types",
         )
 
         # Remove axes
@@ -383,18 +479,25 @@ def visualize_neat_network(
         plt.savefig(output_file, bbox_inches="tight", dpi=150)
         plt.close()
 
-        print(f"Network visualization saved to {output_file}")
+        if logger:
+            logger.info(f"Network visualization saved to {output_file}")
 
     except ImportError:
-        print("Could not visualize network. Please install matplotlib.")
+        if logger:
+            logger.error("Could not visualize network. Please install matplotlib.")
+        else:
+            print("Could not visualize network. Please install matplotlib.")
     except Exception as e:
-        print(f"Error visualizing network: {e}")
+        if logger:
+            logger.error(f"Error visualizing network: {e}")
+        else:
+            print(f"Error visualizing network: {e}")
         import traceback
 
         traceback.print_exc()
 
 
-def visualize_policy(test_task, policy, params, max_steps, gif_file):
+def visualize_policy(test_task, policy, params, max_steps, gif_file, logger):
     """Visualize the policy in action.
 
     Args:
@@ -403,6 +506,7 @@ def visualize_policy(test_task, policy, params, max_steps, gif_file):
         params: Network parameters
         max_steps: Maximum number of steps to visualize
         gif_file: Output GIF file path
+        logger: Logger instance for logging messages (optional)
     """
     task_reset_fn = jax.jit(test_task.reset)
     policy_reset_fn = jax.jit(policy.reset)
@@ -417,16 +521,26 @@ def visualize_policy(test_task, policy, params, max_steps, gif_file):
     policy_state = policy_reset_fn(task_state)
     screens = []
 
-    print("Running simulation for visualization...")
-    for step in range(max_steps):
-        action, policy_state = action_fn(task_state, batched_params, policy_state)
-        task_state, _, _ = step_fn(task_state, action)
-        screens.append(SlimeVolley.render(task_state))
+    logger.info("Running simulation for visualization...")
+    try:
+        for step in range(max_steps):
+            action, policy_state = action_fn(task_state, batched_params, policy_state)
+            task_state, _, _ = step_fn(task_state, action)
+            screens.append(SlimeVolley.render(task_state))
 
-    screens[0].save(
-        gif_file, save_all=True, append_images=screens[1:], duration=40, loop=0
-    )
-    print(f"GIF saved to {gif_file}")
+            # Optional progress logging for long simulations
+            if step > 0 and step % 500 == 0:
+                logger.info(f"Processed {step}/{max_steps} frames...")
+
+        screens[0].save(
+            gif_file, save_all=True, append_images=screens[1:], duration=40, loop=0
+        )
+        logger.info(f"GIF saved to {gif_file}")
+    except Exception as e:
+        logger.error(f"Error in visualization: {e}")
+        import traceback
+
+        traceback.print_exc()
 
 
 def main(config):
@@ -439,7 +553,8 @@ def main(config):
     logger.info("EvoJAX SlimeVolley with NEAT")
     logger.info("=" * 30)
 
-    max_steps = 3000
+    # Use the constant for max steps
+    max_steps = SLIMEVOLLEY_MAX_STEPS
     train_task = SlimeVolley(test=False, max_steps=max_steps)
     test_task = SlimeVolley(test=True, max_steps=max_steps)
 
@@ -510,6 +625,7 @@ def main(config):
         train_task.obs_shape[0],
         train_task.act_shape[0],
         os.path.join(log_dir, f"network_structure_neat.png"),
+        logger=logger,
     )
 
     # Visualize the policy with best parameters
@@ -520,6 +636,7 @@ def main(config):
         trainer.solver.best_params,
         max_steps,
         os.path.join(log_dir, f"slimevolley_neat.gif"),
+        logger=logger,
     )
 
 

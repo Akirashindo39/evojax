@@ -10,6 +10,24 @@ An implementation of NeuroEvolution of Augmenting Topologies (NEAT) for the Slim
 
 Slime Volleyball is a simple game where agents compete to get the ball to land on the opponent's side. NEAT evolves both neural network structure and weights simultaneously, discovering minimal yet effective architectures for this task.
 
+## Installation
+
+Before running the code, you need to install the required dependencies:
+
+```shell
+# Install the package in development mode
+pip install -e .
+
+# Install OpenCV (headless version is sufficient for visualization)
+pip install opencv-python-headless
+```
+
+The main dependencies include:
+- EvoJAX (installed via the package setup)
+- JAX (for accelerated computation)
+- OpenCV (for rendering and visualization)
+- Matplotlib (for network visualization)
+
 ## Running the NEAT Implementation
 
 ```shell
